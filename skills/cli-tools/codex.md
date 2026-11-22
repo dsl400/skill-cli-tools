@@ -1,57 +1,89 @@
----
-name: codex
-description: Use when the user asks to hand work to Codex, to run the Codex CLI, or to split a task between Claude and Codex.
----
+# Codex CLI
 
-# codex
+## Executable
 
-The Codex CLI ships inside the OpenAI VSCode extension; call it by its path:
+Run this Bash block once in the shell that will launch Codex. It resolves
+known installation locations, including SSH shells with a minimal PATH.
 
 ```bash
-C=$(ls -d ~/.vscode/extensions/openai.chatgpt-*-linux-x64 | sort -V | tail -1)/bin/linux-x86_64/codex
-$C --version        # codex-cli 0.171.0-alpha.13 on 2026-11-20
+codex_bin=$(command -v codex || true)
+if [[ -z "$codex_bin" && -x "$HOME/.local/bin/codex" ]]; then
+  codex_bin="$HOME/.local/bin/codex"
+fi
+if [[ -z "$codex_bin" ]]; then
+  codex_bin=$(printf '%s\n' "$HOME"/.vscode/extensions/openai.chatgpt-*-linux-x64/bin/linux-x86_64/codex | sort -V | tail -n 1)
+fi
+if [[ ! -x "$codex_bin" ]]; then
+  printf 'Codex executable missing from documented locations\n' >&2
+  exit 127
+fi
 ```
 
-The model the user picked is `gpt-6.2-sol` at `medium` effort. `~/.codex/config.toml`
-holds another default model, so each run names both:
+## Run
+
+Set `repo` to the absolute target directory. Keep the variables and execution
+in the same shell. Replace the prompt body with the task, files, constraints
+and expected validation.
 
 ```bash
-$C exec -m gpt-6.2-sol -c model_reasoning_effort=medium \
-  -s <sandbox> -C <dir> -o <scratchpad>/codex-<task>.md "<prompt>" </dev/null >/dev/null 2>&1
+repo='/absolute/project'
+run_dir=$(mktemp -d /tmp/cli-codex.XXXXXX)
+cat > "$run_dir/prompt.md" <<'PROMPT'
+Review the requested files. Return findings with file locations and evidence.
+PROMPT
+if "$codex_bin" -a never exec -s read-only -C "$repo" \
+  -o "$run_dir/result.md" - < "$run_dir/prompt.md" \
+  > "$run_dir/events.log" 2> "$run_dir/stderr.log"; then
+  run_status=0
+else
+  run_status=$?
+fi
+printf 'exit=%s artifacts=%s\n' "$run_status" "$run_dir"
 ```
 
-`</dev/null` closes stdin: `codex exec` reads extra input from an open stdin,
-and a background shell keeps it open, so the run waits forever at
-`Reading additional input from stdin...`.
+For an authorized edit, use `-s workspace-write` and an implementation prompt.
+When another worker is editing the repository, create an isolated checkout
+and use its absolute path as `repo`:
 
-| Flag | Use |
+```bash
+git -C "$repo" worktree add -b 'codex/<task>' '<absolute-worktree-path>' HEAD
+```
+
+The configured model and effort apply. Override only when specified by the
+user or task: `-m '<model>' -c 'model_reasoning_effort="<effort>"'`, after
+`exec`. A task outside Git also needs `--skip-git-repo-check`.
+
+| Option | Use |
 |---|---|
-| `-s read-only` | a question or a review; Codex changes no file |
-| `-s workspace-write` | a change; run it in a git worktree of its own |
-| `-C <dir>` | the directory Codex works in |
-| `-o <file>` | Codex writes its last message there; read it after the run |
-| `--json` | the event stream as JSON lines on stdout, when the steps matter |
+| `-` | Read the prompt from stdin; the file supplies EOF. |
+| `-o <file>` | Save the final answer. |
+| `--json` | Write JSONL events to stdout; retain them in `events.log`. |
+| `-a never` before `exec` | Return approval failures without waiting for interaction. |
 
-Codex starts with the prompt and the `AGENTS.md` of the directory it works in.
-The prompt names the issue, the skill to follow and the files.
+For an argument prompt, close stdin with `</dev/null`. Retain stdout and
+stderr: the final-answer file can be absent when startup fails.
+
+## Checks
+
+| Check | Filler | Direct |
+|---|---|---|
+| Input completion | Start Codex in the background. | Supply the prompt file as stdin, or close stdin for an argument prompt. |
+| Failure evidence | Discard command output. | Retain exit status, `events.log`, `stderr.log` and `result.md` when present. |
+| Task isolation | Always use the source project's worktree path. | Create a task-specific worktree when workers would overlap. |
+
+## Flow
 
 ```lnl
 START:
-  ASK   does the task change files?
-  JUMP  WORKTREE IF yes
-  DO    run codex exec with -s read-only -C <repo root>
-  JUMP  RESULT
-WORKTREE:
-  DO    create a git worktree under ../ryzolviam-codex-<task> on a branch codex/<task>
-  DO    run codex exec with -s workspace-write -C <that worktree>, in the background when the run can take minutes
-RESULT:
-  DO    read the -o file and the git diff of the worktree
-  ASK   does the result hold a claim the diff or a command cannot confirm?
-  STOP  report the claim and what it lacks IF yes
+  DO    resolve the executable with the block above and prepare the task directory and prompt
+  DO    select read-only for review or workspace-write for authorized edits
+  DO    run the documented command and wait for that process to exit; if the execution tool returns a session handle, continue waiting on that handle
+  ASK   did the process fail or omit its final answer?
+  STOP  report the exit status and saved diagnostics IF yes
 REVIEW:
-  CHECK each change of Codex is read before it reaches main
-  CHECK the merge or the commit of the work of Codex waits for the user
+  CHECK the answer agrees with the saved output and requested validation
+  CHECK edits are inspected with git diff and git status --short in the target directory, including new files
 REPLY:
-  SAY   what Codex did, the -o file, the diff, and what is still to check
+  SAY   the result, artifact directory and any unverified claim
   END
 ```

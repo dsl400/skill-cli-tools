@@ -1,5 +1,6 @@
 ---
 name: cli-tools
+user-invocable: true
 description: Use when running CLI tools documented in this index, including Claude Code and Codex.
 metadata:
   source: https://github.com/dsl400/skill-cli-tools
@@ -18,7 +19,8 @@ START:
   DO    select the tool matching the user's request from the index
   ASK   is the tool listed?
   STOP  report that the index has no reference for the requested tool IF no
-  DO    read the linked file next to this skill and follow its instructions
+  DO    read only the matching reference beside this file and run its documented recipe
+  DO    use the reference directly; consult help or external documentation only for an unsupported operation or a concrete compatibility error
 REVIEW:
   CHECK the reference matches the requested tool
 REPLY:
