@@ -1,6 +1,5 @@
 # Claude CLI
 
-Check the installed interface with `claude --version` and `claude --help`.
 Run from the target project's directory; `--add-dir` grants access to an
 additional directory.
 
@@ -40,7 +39,7 @@ require a prompt; report blocked actions with the requested permission.
 
 ```lnl
 START:
-  DO    check the installed CLI and select the project directory
+  DO    select the project directory
   DO    prepare the prompt, output paths and permissions for the authorized task
   DO    run claude --print and retain its exit status, stdout and stderr
   ASK   did the run fail or report a blocked action?
