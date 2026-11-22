@@ -5,6 +5,7 @@ it for each tool.
 
 | Tool | Reference |
 |---|---|
+| Claude Code | [claude.md](skills/cli-tools/claude.md) |
 | Codex | [codex.md](skills/cli-tools/codex.md) |
 
 ## Checks
@@ -15,6 +16,11 @@ that tool is needed.
 
 `codex.md` is copied from the `codex/SKILL.md` file on `ryz2`. Its version
 observation and model preference belong to that source environment.
+
+The Claude reference checks non-interactive execution so an automated caller
+receives a result and exits. Explicit tool permissions let unattended runs
+complete authorized actions. Exit status, output and diff checks distinguish
+completed work from a model's unsupported claim.
 
 ## Install
 

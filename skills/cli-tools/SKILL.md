@@ -1,6 +1,6 @@
 ---
 name: cli-tools
-description: Use when running CLI tools documented in this index, including handing work to the Codex CLI.
+description: Use when running CLI tools documented in this index, including Claude Code and Codex.
 metadata:
   source: https://github.com/dsl400/skill-cli-tools
   version: 0.1.0
@@ -10,6 +10,7 @@ metadata:
 
 | Tool | Reference | Use when |
 |---|---|---|
+| Claude Code | [claude.md](claude.md) | Running Claude CLI or handing it a task. |
 | Codex | [codex.md](codex.md) | Running Codex CLI or splitting work between Claude and Codex. |
 
 ```lnl
