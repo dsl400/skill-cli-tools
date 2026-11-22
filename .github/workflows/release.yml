@@ -1,0 +1,38 @@
+# Publishes the cli-tools skill as a GitHub release asset when a v* tag is pushed.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Write the version of the tag into the skill
+        run: |
+          sed -i "0,/^  version: .*/s//  version: ${GITHUB_REF_NAME#v}/" skills/cli-tools/SKILL.md
+          grep -q "^  version: ${GITHUB_REF_NAME#v}$" skills/cli-tools/SKILL.md
+      - name: Lint the flow with the latest lnl release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo dsl400/lnl --pattern lnl.mjs
+          for file in skills/cli-tools/*.md; do
+            node lnl.mjs lint "$file"
+          done
+      - name: Pack the skill
+        run: |
+          mkdir -p pack/cli-tools && cp -r skills/cli-tools/. pack/cli-tools/
+          tar -czf cli-tools.tar.gz -C pack cli-tools
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" cli-tools.tar.gz skills/cli-tools/SKILL.md skills/cli-tools/codex.md --title "$GITHUB_REF_NAME" --generate-notes
